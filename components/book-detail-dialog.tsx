@@ -37,6 +37,7 @@ export function BookDetailDialog({ book, onOpenChange }: BookDetailDialogProps) 
           <div className="flex flex-col gap-6 sm:flex-row">
             <BookCover
               coverId={book.coverId}
+              coverUrl={book.coverUrl}
               title={book.title}
               author={book.author}
               size="L"

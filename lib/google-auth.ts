@@ -4,12 +4,10 @@ import { useSyncExternalStore } from 'react'
 
 export const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ''
 
-const SCOPES = [
-  'openid',
-  'email',
-  'profile',
-  'https://www.googleapis.com/auth/drive.file',
-].join(' ')
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+const SCOPES = ['openid', 'email', 'profile', DRIVE_SCOPE].join(' ')
+const DRIVE_REQUIRED_MESSAGE =
+  'Shelfmark needs Google Drive access to save your shelf. Allow Drive when Google asks.'
 
 const STORAGE_KEY = 'shelfmark:google'
 
@@ -31,6 +29,7 @@ export type GoogleSession = {
 type StoredSession = {
   accessToken: string
   expiresAt: number
+  scope: string
   user: GoogleUser
 }
 
@@ -51,12 +50,22 @@ function setSession(next: GoogleSession) {
   emit()
 }
 
+function hasDriveScope(scope?: string, response?: GoogleTokenResponse) {
+  const gis = window.google?.accounts?.oauth2
+  if (response && gis?.hasGrantedAllScopes) return gis.hasGrantedAllScopes(response, DRIVE_SCOPE)
+  return (scope ?? response?.scope ?? '').split(/[ ,]+/).includes(DRIVE_SCOPE)
+}
+
 function readStored(): StoredSession | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const stored = JSON.parse(raw) as StoredSession
     if (!stored.accessToken || !stored.user?.sub || stored.expiresAt <= Date.now() + 30_000) return null
+    if (!hasDriveScope(stored.scope)) {
+      clearStored()
+      return null
+    }
     return stored
   } catch {
     return null
@@ -121,6 +130,7 @@ export function initGoogleAuth() {
   tokenClient = gis.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: SCOPES,
+    enable_granular_consent: false,
     callback: () => {},
   })
 
@@ -171,10 +181,16 @@ async function fetchUser(token: string): Promise<GoogleUser> {
 }
 
 async function applyToken(response: GoogleTokenResponse, user?: GoogleUser) {
+  if (!hasDriveScope(response.scope, response)) throw new Error(DRIVE_REQUIRED_MESSAGE)
   accessToken = response.access_token
   expiresAt = Date.now() + response.expires_in * 1000
   const nextUser = user ?? session.user ?? (await fetchUser(response.access_token))
-  writeStored({ accessToken: response.access_token, expiresAt, user: nextUser })
+  writeStored({
+    accessToken: response.access_token,
+    expiresAt,
+    scope: response.scope,
+    user: nextUser,
+  })
   setSession({ status: 'signed-in', user: nextUser, error: null })
 }
 
@@ -184,7 +200,7 @@ export async function signIn() {
     return
   }
   try {
-    const response = await requestToken(session.user ? '' : 'select_account')
+    const response = await requestToken('consent')
     await applyToken(response)
   } catch (error) {
     setSession({

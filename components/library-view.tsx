@@ -151,6 +151,7 @@ export function LibraryView({ books, onAdd, onSelect }: LibraryViewProps) {
                   >
                     <BookCover
                       coverId={book.coverId}
+                      coverUrl={book.coverUrl}
                       title={book.title}
                       author={book.author}
                       className="w-full transition-transform duration-300 group-hover:-translate-y-1.5 group-hover:-rotate-1 group-focus-visible:ring-2 group-focus-visible:ring-ring"

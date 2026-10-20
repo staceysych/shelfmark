@@ -1,14 +1,41 @@
 import type { NextRequest } from 'next/server'
 import { suggestGenre, type SearchResult } from '@/lib/books'
 
-type OpenLibraryDoc = {
-  key: string
-  title: string
-  author_name?: string[]
-  cover_i?: number
-  first_publish_year?: number
-  number_of_pages_median?: number
-  subject?: string[]
+type ImageLinks = {
+  thumbnail?: string
+  smallThumbnail?: string
+}
+
+type GoogleBook = {
+  id?: string
+  volumeInfo?: {
+    title?: string
+    authors?: string[]
+    publishedDate?: string
+    pageCount?: number
+    categories?: string[]
+    imageLinks?: ImageLinks
+  }
+}
+
+function coverFromGoogle(links?: ImageLinks) {
+  const raw = links?.thumbnail || links?.smallThumbnail
+  if (!raw) return null
+  return raw.replace(/^http:\/\//, 'https://').replace('zoom=1', 'zoom=2')
+}
+
+async function fetchGoogleBooks(url: URL, tries = 3) {
+  let lastError = 'Search is unavailable right now.'
+  for (let attempt = 1; attempt <= tries; attempt++) {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (res.ok) return res
+    const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null
+    lastError = body?.error?.message || `Google Books responded ${res.status}`
+    const transient = res.status === 503 || res.status === 429
+    if (!transient || attempt === tries) throw new Error(lastError)
+    await new Promise((resolve) => setTimeout(resolve, 800 * attempt))
+  }
+  throw new Error(lastError)
 }
 
 export async function GET(request: NextRequest) {
@@ -17,37 +44,41 @@ export async function GET(request: NextRequest) {
     return Response.json({ results: [] })
   }
 
-  const url = new URL('https://openlibrary.org/search.json')
+  const apiKey = process.env.GOOGLE_BOOKS_API_KEY
+  const url = new URL('https://www.googleapis.com/books/v1/volumes')
   url.searchParams.set('q', query)
-  url.searchParams.set(
-    'fields',
-    'key,title,author_name,cover_i,first_publish_year,number_of_pages_median,subject',
-  )
-  url.searchParams.set('limit', '16')
+  url.searchParams.set('maxResults', '10')
+  if (apiKey) url.searchParams.set('key', apiKey)
 
   try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Shelfmark/1.0 (personal reading journal)' },
-      next: { revalidate: 60 * 60 * 24 },
-    })
-    if (!res.ok) throw new Error(`Open Library responded ${res.status}`)
-    const data: { docs: OpenLibraryDoc[] } = await res.json()
+    const res = await fetchGoogleBooks(url)
+    const data = (await res.json()) as { items?: GoogleBook[] }
 
-    const results: SearchResult[] = data.docs
-      .map((doc) => ({
-        olKey: doc.key,
-        title: doc.title,
-        author: doc.author_name?.slice(0, 2).join(', ') ?? 'Unknown author',
-        coverId: doc.cover_i ?? null,
-        year: doc.first_publish_year ?? null,
-        pages: doc.number_of_pages_median ?? null,
-        suggestedGenre: suggestGenre(doc.subject),
-      }))
-      .sort((a, b) => Number(Boolean(b.coverId)) - Number(Boolean(a.coverId)))
+    const results: SearchResult[] = (data.items ?? [])
+      .filter((item) => item.id && item.volumeInfo?.title)
+      .map((item) => {
+        const info = item.volumeInfo!
+        const year = info.publishedDate ? Number.parseInt(info.publishedDate.slice(0, 4), 10) : null
+        return {
+          olKey: `gb:${item.id}`,
+          title: info.title!,
+          author: info.authors?.slice(0, 2).join(', ') ?? 'Unknown author',
+          coverId: null,
+          coverUrl: coverFromGoogle(info.imageLinks),
+          year: Number.isFinite(year) ? year : null,
+          pages: info.pageCount ?? null,
+          suggestedGenre: suggestGenre(info.categories),
+        }
+      })
+      .sort((a, b) => Number(Boolean(b.coverUrl)) - Number(Boolean(a.coverUrl)))
       .slice(0, 10)
 
     return Response.json({ results })
-  } catch {
-    return Response.json({ results: [], error: 'Search is unavailable right now.' }, { status: 502 })
+  } catch (error) {
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : 'Search is unavailable right now.'
+    return Response.json({ results: [], error: message }, { status: 502 })
   }
 }

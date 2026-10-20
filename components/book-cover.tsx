@@ -1,20 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { coverUrl } from '@/lib/books'
+import { coverSrc } from '@/lib/books'
 import { cn } from '@/lib/utils'
 
 type BookCoverProps = {
   coverId: number | null
+  coverUrl?: string | null
   title: string
   author?: string
   size?: 'S' | 'M' | 'L'
   className?: string
 }
 
-export function BookCover({ coverId, title, author, size = 'M', className }: BookCoverProps) {
+export function BookCover({ coverId, coverUrl, title, author, size = 'M', className }: BookCoverProps) {
   const [failed, setFailed] = useState(false)
-  const src = coverUrl(coverId, size)
+  const src = coverSrc({ coverId, coverUrl }, size)
 
   return (
     <div

@@ -4,6 +4,7 @@ export type Book = {
   title: string
   author: string
   coverId: number | null
+  coverUrl?: string | null
   year: number | null
   pages: number | null
   genre: Genre
@@ -32,6 +33,7 @@ export type SearchResult = {
   title: string
   author: string
   coverId: number | null
+  coverUrl: string | null
   year: number | null
   pages: number | null
   suggestedGenre: Genre
@@ -88,6 +90,10 @@ export function suggestGenre(subjects: string[] = []): Genre {
   return 'Non-fiction'
 }
 
-export function coverUrl(coverId: number | null, size: 'S' | 'M' | 'L' = 'M') {
-  return coverId ? `https://covers.openlibrary.org/b/id/${coverId}-${size}.jpg` : null
+export function coverSrc(
+  book: { coverId: number | null; coverUrl?: string | null },
+  size: 'S' | 'M' | 'L' = 'M',
+) {
+  if (book.coverUrl) return book.coverUrl
+  return book.coverId ? `https://covers.openlibrary.org/b/id/${book.coverId}-${size}.jpg` : null
 }

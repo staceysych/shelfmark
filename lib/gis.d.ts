@@ -26,6 +26,7 @@ declare global {
     scope: string
     callback: (response: GoogleTokenResponse) => void
     error_callback?: (error: GoogleIdentityError) => void
+    enable_granular_consent?: boolean
   }
 
   interface Window {
@@ -33,6 +34,7 @@ declare global {
       accounts: {
         oauth2: {
           initTokenClient: (config: GoogleTokenClientConfig) => GoogleTokenClient
+          hasGrantedAllScopes?: (response: GoogleTokenResponse, ...scopes: string[]) => boolean
           revoke: (accessToken: string, callback?: () => void) => void
         }
       }

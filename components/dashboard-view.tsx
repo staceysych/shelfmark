@@ -135,7 +135,7 @@ export function DashboardView({ books, onSelect }: DashboardViewProps) {
             {stats.favorites.map((b) => (
               <li key={b.id}>
                 <button type="button" onClick={() => onSelect(b)} className="flex w-full flex-col gap-2 text-left">
-                  <BookCover coverId={b.coverId} title={b.title} author={b.author} className="w-full" />
+                  <BookCover coverId={b.coverId} coverUrl={b.coverUrl} title={b.title} author={b.author} className="w-full" />
                   <StarRating value={b.rating} />
                 </button>
               </li>
