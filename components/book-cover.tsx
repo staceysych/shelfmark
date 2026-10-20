@@ -20,7 +20,7 @@ export function BookCover({ coverId, coverUrl, title, author, size = 'M', classN
   return (
     <div
       className={cn(
-        'relative aspect-[2/3] overflow-hidden rounded-sm bg-secondary shadow-[0_12px_24px_-8px_oklch(0_0_0/0.6)]',
+        'relative aspect-[2/3] h-auto w-full shrink-0 self-start overflow-hidden rounded-sm bg-secondary shadow-[0_12px_24px_-8px_oklch(0_0_0/0.6)]',
         className,
       )}
     >
@@ -31,7 +31,7 @@ export function BookCover({ coverId, coverUrl, title, author, size = 'M', classN
           alt={`Cover of ${title}`}
           loading="lazy"
           onError={() => setFailed(true)}
-          className="size-full object-cover"
+          className="absolute inset-0 size-full object-cover object-top"
         />
       ) : (
         <div className="flex size-full flex-col justify-between bg-secondary p-3">

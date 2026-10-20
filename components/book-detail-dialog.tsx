@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
-import type { Book } from '@/lib/books'
+import { bookStatus, type Book } from '@/lib/books'
 import { useLibrary } from '@/lib/use-library'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -34,7 +34,7 @@ export function BookDetailDialog({ book, onOpenChange }: BookDetailDialogProps) 
     <Dialog open={Boolean(book)} onOpenChange={close}>
       <DialogContent className="max-h-[90dvh] gap-5 overflow-y-auto p-5 sm:max-w-2xl">
         {book && (
-          <div className="flex flex-col gap-6 sm:flex-row">
+          <div className="flex flex-col items-start gap-6 sm:flex-row">
             <BookCover
               coverId={book.coverId}
               coverUrl={book.coverUrl}
@@ -45,7 +45,10 @@ export function BookDetailDialog({ book, onOpenChange }: BookDetailDialogProps) 
             />
             <div className="flex min-w-0 flex-1 flex-col gap-4">
               <DialogHeader className="gap-1 pr-6">
-                <span className="text-xs font-medium tracking-wide text-primary uppercase">{book.genre}</span>
+                <span className="text-xs font-medium tracking-wide text-primary uppercase">
+                  {bookStatus(book) === 'reading' ? 'Currently reading · ' : ''}
+                  {book.genre}
+                </span>
                 <DialogTitle className="font-serif text-3xl leading-tight font-normal text-balance">
                   {book.title}
                 </DialogTitle>
@@ -63,6 +66,7 @@ export function BookDetailDialog({ book, onOpenChange }: BookDetailDialogProps) 
                     rating: book.rating,
                     note: book.note,
                     moods: book.moods ?? [],
+                    status: bookStatus(book),
                     finishedAt: book.finishedAt,
                   }}
                   submitLabel="Save changes"
@@ -82,7 +86,11 @@ export function BookDetailDialog({ book, onOpenChange }: BookDetailDialogProps) 
                   <div className="flex flex-col gap-1">
                     <StarRating value={book.rating} size="lg" className="-ml-0.5" />
                     <span className="text-xs text-muted-foreground">
-                      Finished {dateFormat.format(new Date(book.finishedAt))}
+                      {bookStatus(book) === 'reading'
+                        ? 'Still reading'
+                        : book.finishedAt
+                          ? `Finished ${dateFormat.format(new Date(book.finishedAt))}`
+                          : 'Finished'}
                     </span>
                   </div>
 

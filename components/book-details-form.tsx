@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { GENRES, MOODS, type Genre, type Mood } from '@/lib/books'
+import { GENRES, MOODS, type Genre, type Mood, type ReadingStatus } from '@/lib/books'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,6 +14,7 @@ export type BookDetails = {
   rating: number
   note: string
   moods: Mood[]
+  status: ReadingStatus
   finishedAt: string
 }
 
@@ -22,11 +23,12 @@ type BookDetailsFormProps = {
   submitLabel: string
   onSubmit: (details: BookDetails) => void
   secondaryAction?: React.ReactNode
+  catalogGenre?: string | null
 }
 
 const genreItems = GENRES.map((g) => ({ value: g, label: g }))
 
-export function BookDetailsForm({ initial, submitLabel, onSubmit, secondaryAction }: BookDetailsFormProps) {
+export function BookDetailsForm({ initial, submitLabel, onSubmit, secondaryAction, catalogGenre }: BookDetailsFormProps) {
   const [details, setDetails] = useState<BookDetails>(initial)
   const set = <K extends keyof BookDetails>(key: K, value: BookDetails[K]) =>
     setDetails((d) => ({ ...d, [key]: value }))
@@ -39,11 +41,47 @@ export function BookDetailsForm({ initial, submitLabel, onSubmit, secondaryActio
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault()
-        onSubmit({ ...details, note: details.note.trim() })
+        onSubmit({
+          ...details,
+          note: details.note.trim(),
+          finishedAt: details.status === 'reading' ? '' : details.finishedAt,
+        })
       }}
     >
       <div className="flex flex-col gap-2">
-        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Your rating</span>
+        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Status</span>
+        <div className="flex w-fit items-center rounded-lg border border-border p-0.5" role="group" aria-label="Reading status">
+          {(
+            [
+              ['reading', 'Currently reading'],
+              ['finished', 'Finished'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={details.status === value}
+              onClick={() => {
+                set('status', value)
+                if (value === 'finished' && !details.finishedAt) {
+                  set('finishedAt', new Date().toISOString().slice(0, 10))
+                }
+              }}
+              className={cn(
+                'h-7 rounded-md px-2.5 text-xs transition-colors',
+                details.status === value ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          {details.status === 'reading' ? 'Rating so far' : 'Your rating'}
+        </span>
         <StarRating value={details.rating} onChange={(v) => set('rating', v)} size="lg" className="-ml-1" />
       </div>
 
@@ -62,23 +100,28 @@ export function BookDetailsForm({ initial, submitLabel, onSubmit, secondaryActio
               ))}
             </SelectContent>
           </Select>
+          {catalogGenre ? (
+            <span className="text-[11px] text-muted-foreground">From the catalog: {catalogGenre}</span>
+          ) : null}
         </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Finished on</span>
-          <Input
-            type="date"
-            value={details.finishedAt}
-            max={new Date().toISOString().slice(0, 10)}
-            onChange={(e) => set('finishedAt', e.target.value)}
-            required
-            className="[color-scheme:dark]"
-          />
-        </label>
+        {details.status === 'finished' ? (
+          <label className="flex flex-col gap-2">
+            <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Finished on</span>
+            <Input
+              type="date"
+              value={details.finishedAt}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => set('finishedAt', e.target.value)}
+              required
+              className="[color-scheme:dark]"
+            />
+          </label>
+        ) : null}
       </div>
 
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          How did it feel?
+          {details.status === 'reading' ? 'How is it feeling?' : 'How did it feel?'}
         </legend>
         <div className="flex flex-wrap gap-1.5">
           {MOODS.map((mood) => {

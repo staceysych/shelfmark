@@ -74,7 +74,7 @@ export function AddBookDialog({ open, onOpenChange }: AddBookDialogProps) {
               <DialogTitle className="sr-only">Add {selected.title}</DialogTitle>
               <DialogDescription className="sr-only">Rate the book and add your thoughts.</DialogDescription>
             </DialogHeader>
-            <div className="flex gap-4">
+            <div className="flex items-start gap-4">
               <BookCover
                 coverId={selected.coverId}
                 coverUrl={selected.coverUrl}
@@ -97,8 +97,10 @@ export function AddBookDialog({ open, onOpenChange }: AddBookDialogProps) {
                 rating: 0,
                 note: '',
                 moods: [],
-                finishedAt: new Date().toISOString().slice(0, 10),
+                status: 'reading',
+                finishedAt: '',
               }}
+              catalogGenre={selected.catalogGenre}
               submitLabel="Add to shelf"
               onSubmit={(details) => {
                 addBook({

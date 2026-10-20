@@ -10,12 +10,21 @@ type GoogleBook = {
   id?: string
   volumeInfo?: {
     title?: string
+    subtitle?: string
     authors?: string[]
     publishedDate?: string
     pageCount?: number
+    mainCategory?: string
     categories?: string[]
+    description?: string
     imageLinks?: ImageLinks
   }
+}
+
+function catalogSubjects(info: NonNullable<GoogleBook['volumeInfo']>) {
+  const categories = [...(info.categories ?? []), info.mainCategory].filter((value): value is string => Boolean(value))
+  if (categories.length > 0) return categories
+  return [info.subtitle, info.description?.slice(0, 400)].filter((value): value is string => Boolean(value))
 }
 
 function coverFromGoogle(links?: ImageLinks) {
@@ -59,6 +68,7 @@ export async function GET(request: NextRequest) {
       .map((item) => {
         const info = item.volumeInfo!
         const year = info.publishedDate ? Number.parseInt(info.publishedDate.slice(0, 4), 10) : null
+        const subjects = catalogSubjects(info)
         return {
           olKey: `gb:${item.id}`,
           title: info.title!,
@@ -67,7 +77,8 @@ export async function GET(request: NextRequest) {
           coverUrl: coverFromGoogle(info.imageLinks),
           year: Number.isFinite(year) ? year : null,
           pages: info.pageCount ?? null,
-          suggestedGenre: suggestGenre(info.categories),
+          suggestedGenre: suggestGenre(subjects),
+          catalogGenre: info.categories?.[0] ?? info.mainCategory ?? null,
         }
       })
       .sort((a, b) => Number(Boolean(b.coverUrl)) - Number(Boolean(a.coverUrl)))

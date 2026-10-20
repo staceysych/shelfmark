@@ -35,23 +35,25 @@ function Shelf() {
 
   return (
     <Tabs defaultValue="shelf" className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-8 px-4 py-6 sm:px-6 sm:py-10">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <BookMarked className="size-5 text-primary" aria-hidden />
-          <h1 className="font-serif text-2xl">Shelfmark</h1>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {status === 'signed-in' ? (
-            <AccountButton syncStatus={syncStatus} syncMessage={syncMessage} onRetrySave={retrySave} />
-          ) : null}
-          <TabsList>
-            <TabsTrigger value="shelf">Shelf</TabsTrigger>
-            <TabsTrigger value="insights">Insights</TabsTrigger>
-          </TabsList>
-          <Button onClick={() => setAdding(true)} className="h-8" disabled={status !== 'signed-in'}>
-            <Plus aria-hidden />
-            Add book
-          </Button>
+      <header className="flex flex-col gap-4">
+        {status === 'signed-in' ? (
+          <AccountButton syncStatus={syncStatus} syncMessage={syncMessage} onRetrySave={retrySave} />
+        ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <BookMarked className="size-5 text-primary" aria-hidden />
+            <h1 className="font-serif text-2xl">Shelfmark</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <TabsList>
+              <TabsTrigger value="shelf">Shelf</TabsTrigger>
+              <TabsTrigger value="insights">Insights</TabsTrigger>
+            </TabsList>
+            <Button onClick={() => setAdding(true)} className="h-8" disabled={status !== 'signed-in'}>
+              <Plus aria-hidden />
+              Add book
+            </Button>
+          </div>
         </div>
       </header>
 

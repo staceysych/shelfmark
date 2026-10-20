@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Plus, Search, Star } from 'lucide-react'
-import type { Book, Genre } from '@/lib/books'
+import { bookStatus, type Book, type Genre } from '@/lib/books'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -35,28 +35,37 @@ export function LibraryView({ books, onAdd, onSelect }: LibraryViewProps) {
     return [...counts.entries()].sort((a, b) => b[1] - a[1])
   }, [books])
 
-  const filtered = useMemo(() => {
+  const { reading, shelves } = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return books
-      .filter((b) => genre === 'all' || b.genre === genre)
+    const matches = books.filter((b) => {
+      if (genre !== 'all' && b.genre !== genre) return false
+      if (q && !b.title.toLowerCase().includes(q) && !b.author.toLowerCase().includes(q)) return false
+      return true
+    })
+    const reading = matches
+      .filter((b) => bookStatus(b) === 'reading')
+      .sort((a, b) => b.addedAt.localeCompare(a.addedAt))
+    const finished = matches
+      .filter((b) => bookStatus(b) === 'finished')
       .filter((b) => b.rating >= minRating)
-      .filter((b) => !q || b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q))
       .sort((a, b) => {
         if (sort === 'rating') return b.rating - a.rating || b.finishedAt.localeCompare(a.finishedAt)
         if (sort === 'title') return a.title.localeCompare(b.title)
         return b.finishedAt.localeCompare(a.finishedAt)
       })
-  }, [books, genre, minRating, search, sort])
 
-  const shelves = useMemo(() => {
-    if (sort !== 'recent') return [{ label: null, books: filtered }]
+    if (sort !== 'recent') return { reading, shelves: [{ label: null as string | null, books: finished }] }
+
     const byYear = new Map<string, Book[]>()
-    filtered.forEach((b) => {
-      const year = b.finishedAt.slice(0, 4)
+    finished.forEach((b) => {
+      const year = b.finishedAt.slice(0, 4) || 'Finished'
       byYear.set(year, [...(byYear.get(year) ?? []), b])
     })
-    return [...byYear.entries()].map(([label, books]) => ({ label, books }))
-  }, [filtered, sort])
+    return {
+      reading,
+      shelves: [...byYear.entries()].map(([label, books]) => ({ label, books })),
+    }
+  }, [books, genre, minRating, search, sort])
 
   if (books.length === 0) return <EmptyShelf onAdd={onAdd} />
 
@@ -128,50 +137,88 @@ export function LibraryView({ books, onAdd, onSelect }: LibraryViewProps) {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {reading.length === 0 && shelves.every((shelf) => shelf.books.length === 0) ? (
         <p className="py-16 text-center text-sm text-muted-foreground">No books match these filters.</p>
       ) : (
-        shelves.map((shelf) => (
-          <section key={shelf.label ?? 'all'} className="flex flex-col gap-5" aria-label={shelf.label ?? 'Books'}>
-            {shelf.label && (
-              <h2 className="flex items-baseline gap-3">
-                <span className="font-serif text-3xl">{shelf.label}</span>
-                <span className="text-sm text-muted-foreground">
-                  {shelf.books.length} {shelf.books.length === 1 ? 'book' : 'books'}
-                </span>
-              </h2>
-            )}
-            <ul className="grid grid-cols-3 gap-x-4 gap-y-8 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
-              {shelf.books.map((book) => (
-                <li key={book.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(book)}
-                    className="group flex w-full flex-col gap-2.5 text-left focus-visible:outline-none"
-                  >
-                    <BookCover
-                      coverId={book.coverId}
-                      coverUrl={book.coverUrl}
-                      title={book.title}
-                      author={book.author}
-                      className="w-full transition-transform duration-300 group-hover:-translate-y-1.5 group-hover:-rotate-1 group-focus-visible:ring-2 group-focus-visible:ring-ring"
-                    />
-                    <span className="flex flex-col gap-1">
-                      <span className="line-clamp-1 text-sm font-medium">{book.title}</span>
-                      {book.rating > 0 ? (
-                        <StarRating value={book.rating} />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Unrated</span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
+        <>
+          {reading.length > 0 && (
+            <BookShelf
+              label="Currently reading"
+              books={reading}
+              onSelect={onSelect}
+            />
+          )}
+          {shelves.map(
+            (shelf) =>
+              shelf.books.length > 0 && (
+                <BookShelf key={shelf.label ?? 'all'} label={shelf.label} books={shelf.books} onSelect={onSelect} />
+              ),
+          )}
+        </>
       )}
     </div>
+  )
+}
+
+function BookShelf({
+  label,
+  books,
+  onSelect,
+}: {
+  label: string | null
+  books: Book[]
+  onSelect: (book: Book) => void
+}) {
+  return (
+    <section className="flex flex-col gap-5" aria-label={label ?? 'Books'}>
+      {label && (
+        <h2 className="flex items-baseline gap-3">
+          <span className="font-serif text-3xl">{label}</span>
+          <span className="text-sm text-muted-foreground">
+            {books.length} {books.length === 1 ? 'book' : 'books'}
+          </span>
+        </h2>
+      )}
+      <ul className="grid grid-cols-3 gap-x-4 gap-y-8 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+        {books.map((book) => {
+          const reading = bookStatus(book) === 'reading'
+          return (
+            <li key={book.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(book)}
+                className="group flex w-full flex-col gap-2.5 text-left focus-visible:outline-none"
+              >
+                <span className="relative block">
+                  <BookCover
+                    coverId={book.coverId}
+                    coverUrl={book.coverUrl}
+                    title={book.title}
+                    author={book.author}
+                    className="w-full transition-transform duration-300 group-hover:-translate-y-1.5 group-hover:-rotate-1 group-focus-visible:ring-2 group-focus-visible:ring-ring"
+                  />
+                  {reading ? (
+                    <span className="absolute inset-x-1 bottom-1 rounded-sm bg-background/85 px-1.5 py-0.5 text-center text-[10px] font-medium tracking-wide text-primary uppercase">
+                      Reading
+                    </span>
+                  ) : null}
+                </span>
+                <span className="flex flex-col gap-1">
+                  <span className="line-clamp-1 text-sm font-medium">{book.title}</span>
+                  {reading ? (
+                    <span className="text-xs text-primary">Currently reading</span>
+                  ) : book.rating > 0 ? (
+                    <StarRating value={book.rating} />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Unrated</span>
+                  )}
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
@@ -209,7 +256,8 @@ function EmptyShelf({ onAdd }: { onAdd: () => void }) {
       <div className="flex flex-col gap-2">
         <h2 className="font-serif text-3xl text-balance">Your shelf is waiting</h2>
         <p className="max-w-sm text-sm leading-relaxed text-muted-foreground text-pretty">
-          Add the last book you finished. Type a title, pick it from the list, and give it a rating.
+          Add a book you’re reading, or one you just finished. Type a title, pick it from the list, and save it to
+          your shelf.
         </p>
       </div>
       <Button size="lg" onClick={onAdd} className="px-5">

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import type { Book } from '@/lib/books'
+import { bookStatus, type Book } from '@/lib/books'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { BookCover } from '@/components/book-cover'
 import { StarRating } from '@/components/star-rating'
@@ -17,13 +17,14 @@ type DashboardViewProps = {
 
 export function DashboardView({ books, onSelect }: DashboardViewProps) {
   const stats = useMemo(() => {
+    const finished = books.filter((b) => bookStatus(b) === 'finished')
     const thisYear = new Date().getFullYear().toString()
-    const rated = books.filter((b) => b.rating > 0)
+    const rated = finished.filter((b) => b.rating > 0)
     const genres = new Map<string, { count: number; ratingSum: number; rated: number }>()
     const authors = new Map<string, number>()
     const moods = new Map<string, number>()
 
-    books.forEach((b) => {
+    finished.forEach((b) => {
       const g = genres.get(b.genre) ?? { count: 0, ratingSum: 0, rated: 0 }
       g.count++
       if (b.rating > 0) {
@@ -41,7 +42,7 @@ export function DashboardView({ books, onSelect }: DashboardViewProps) {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
       return {
         month: d.toLocaleString('en', { month: 'short' }),
-        count: books.filter((b) => b.finishedAt.startsWith(key)).length,
+        count: finished.filter((b) => b.finishedAt.startsWith(key)).length,
       }
     })
 
@@ -50,10 +51,10 @@ export function DashboardView({ books, onSelect }: DashboardViewProps) {
       .sort((a, b) => b.count - a.count)
 
     return {
-      total: books.length,
-      thisYear: books.filter((b) => b.finishedAt.startsWith(thisYear)).length,
+      total: finished.length,
+      thisYear: finished.filter((b) => b.finishedAt.startsWith(thisYear)).length,
       avgRating: rated.length ? rated.reduce((s, b) => s + b.rating, 0) / rated.length : 0,
-      pages: books.reduce((s, b) => s + (b.pages ?? 0), 0),
+      pages: finished.reduce((s, b) => s + (b.pages ?? 0), 0),
       genres: genreList.slice(0, 8),
       bestGenre: genreList.filter((g) => g.avg > 0).sort((a, b) => b.avg - a.avg || b.count - a.count)[0],
       months,
@@ -63,10 +64,10 @@ export function DashboardView({ books, onSelect }: DashboardViewProps) {
     }
   }, [books])
 
-  if (books.length === 0) {
+  if (stats.total === 0) {
     return (
       <p className="py-24 text-center text-sm text-muted-foreground">
-        Add a few books and your reading insights will appear here.
+        Finish a book and your reading insights will appear here.
       </p>
     )
   }
