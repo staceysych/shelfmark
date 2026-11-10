@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { bookStatus, type Book } from '@/lib/books'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { BookCover } from '@/components/book-cover'
+import { ReadingAgeShare } from '@/components/reading-age-share'
 import { StarRating } from '@/components/star-rating'
 
 const genreConfig = { count: { label: 'Books', color: 'var(--chart-1)' } } satisfies ChartConfig
@@ -74,6 +75,8 @@ export function DashboardView({ books, onSelect }: DashboardViewProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <ReadingAgeShare books={books} />
+
       <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4">
         <Stat label="Books read" value={stats.total.toString()} />
         <Stat label={`In ${new Date().getFullYear()}`} value={stats.thisYear.toString()} />

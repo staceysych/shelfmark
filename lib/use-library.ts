@@ -1,10 +1,11 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import useSWR from 'swr'
 import type { Book } from '@/lib/books'
 import { DriveError, forgetDriveFile, getLibraryFileId, readLibrary, writeLibrary } from '@/lib/drive'
 import { getAccessToken, useGoogleSession } from '@/lib/google-auth'
+import { migrateGoogleCovers } from '@/lib/migrate-covers'
 
 const LEGACY_STORAGE_KEY = 'shelfmark:books:v1'
 
@@ -99,7 +100,7 @@ function persistBooks(userSub: string, books: Book[]) {
 export function useLibrary() {
   const { status, user } = useGoogleSession()
   const signedIn = status === 'signed-in' && user
-  const { data, mutate, isLoading, error } = useSWR<Book[]>(
+  const { data, mutate, isLoading, isValidating, error } = useSWR<Book[]>(
     signedIn ? ['library', user.sub] : null,
     ([, userSub]: [string, string]) => loadBooks(userSub),
     {
@@ -116,6 +117,7 @@ export function useLibrary() {
     () => syncState,
   )
   const books = data ?? []
+  const migratedForUser = useRef<string | null>(null)
 
   const save = (next: Book[]) => {
     if (!user) return
@@ -123,6 +125,25 @@ export function useLibrary() {
     mutate(next, { revalidate: false })
     persistBooks(user.sub, next)
   }
+
+  useEffect(() => {
+    if (!user || !data || isValidating) return
+    if (migratedForUser.current === user.sub) return
+    migratedForUser.current = user.sub
+
+    let cancelled = false
+    void (async () => {
+      const migrated = await migrateGoogleCovers(data)
+      if (cancelled || !migrated) return
+      writeCache(user.sub, migrated)
+      mutate(migrated, { revalidate: false })
+      persistBooks(user.sub, migrated)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user, data, isValidating, mutate])
 
   return {
     books,

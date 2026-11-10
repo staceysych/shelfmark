@@ -104,6 +104,7 @@ export function coverSrc(
   book: { coverId: number | null; coverUrl?: string | null },
   size: 'S' | 'M' | 'L' = 'M',
 ) {
+  if (book.coverId) return `https://covers.openlibrary.org/b/id/${book.coverId}-${size}.jpg`
   if (book.coverUrl) return book.coverUrl
-  return book.coverId ? `https://covers.openlibrary.org/b/id/${book.coverId}-${size}.jpg` : null
+  return null
 }
