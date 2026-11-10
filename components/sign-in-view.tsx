@@ -81,6 +81,16 @@ export function SignInView() {
             {error ? <p className="max-w-sm text-sm text-destructive">{error}</p> : null}
           </div>
         )}
+
+        <p className="text-xs text-muted-foreground">
+          <a href="/privacy" className="underline-offset-4 hover:underline">
+            Privacy
+          </a>
+          {' · '}
+          <a href="/terms" className="underline-offset-4 hover:underline">
+            Terms
+          </a>
+        </p>
       </main>
     </div>
   )
