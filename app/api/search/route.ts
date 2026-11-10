@@ -1,45 +1,25 @@
 import type { NextRequest } from 'next/server'
 import { suggestGenre, type SearchResult } from '@/lib/books'
 
-type ImageLinks = {
-  thumbnail?: string
-  smallThumbnail?: string
+type OpenLibraryDoc = {
+  key: string
+  title: string
+  author_name?: string[]
+  cover_i?: number
+  first_publish_year?: number
+  number_of_pages_median?: number
+  subject?: string[]
 }
 
-type GoogleBook = {
-  id?: string
-  volumeInfo?: {
-    title?: string
-    subtitle?: string
-    authors?: string[]
-    publishedDate?: string
-    pageCount?: number
-    mainCategory?: string
-    categories?: string[]
-    description?: string
-    imageLinks?: ImageLinks
-  }
-}
-
-function catalogSubjects(info: NonNullable<GoogleBook['volumeInfo']>) {
-  const categories = [...(info.categories ?? []), info.mainCategory].filter((value): value is string => Boolean(value))
-  if (categories.length > 0) return categories
-  return [info.subtitle, info.description?.slice(0, 400)].filter((value): value is string => Boolean(value))
-}
-
-function coverFromGoogle(links?: ImageLinks) {
-  const raw = links?.thumbnail || links?.smallThumbnail
-  if (!raw) return null
-  return raw.replace(/^http:\/\//, 'https://').replace('zoom=1', 'zoom=2')
-}
-
-async function fetchGoogleBooks(url: URL, tries = 3) {
+async function fetchOpenLibrary(url: URL, tries = 3) {
   let lastError = 'Search is unavailable right now.'
   for (let attempt = 1; attempt <= tries; attempt++) {
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Shelfmark/1.0 (personal reading journal)' },
+      cache: 'no-store',
+    })
     if (res.ok) return res
-    const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null
-    lastError = body?.error?.message || `Google Books responded ${res.status}`
+    lastError = `Open Library responded ${res.status}`
     const transient = res.status === 503 || res.status === 429
     if (!transient || attempt === tries) throw new Error(lastError)
     await new Promise((resolve) => setTimeout(resolve, 800 * attempt))
@@ -53,35 +33,32 @@ export async function GET(request: NextRequest) {
     return Response.json({ results: [] })
   }
 
-  const apiKey = process.env.GOOGLE_BOOKS_API_KEY
-  const url = new URL('https://www.googleapis.com/books/v1/volumes')
+  const url = new URL('https://openlibrary.org/search.json')
   url.searchParams.set('q', query)
-  url.searchParams.set('maxResults', '10')
-  if (apiKey) url.searchParams.set('key', apiKey)
+  url.searchParams.set(
+    'fields',
+    'key,title,author_name,cover_i,first_publish_year,number_of_pages_median,subject',
+  )
+  url.searchParams.set('limit', '16')
 
   try {
-    const res = await fetchGoogleBooks(url)
-    const data = (await res.json()) as { items?: GoogleBook[] }
+    const res = await fetchOpenLibrary(url)
+    const data = (await res.json()) as { docs?: OpenLibraryDoc[] }
 
-    const results: SearchResult[] = (data.items ?? [])
-      .filter((item) => item.id && item.volumeInfo?.title)
-      .map((item) => {
-        const info = item.volumeInfo!
-        const year = info.publishedDate ? Number.parseInt(info.publishedDate.slice(0, 4), 10) : null
-        const subjects = catalogSubjects(info)
-        return {
-          olKey: `gb:${item.id}`,
-          title: info.title!,
-          author: info.authors?.slice(0, 2).join(', ') ?? 'Unknown author',
-          coverId: null,
-          coverUrl: coverFromGoogle(info.imageLinks),
-          year: Number.isFinite(year) ? year : null,
-          pages: info.pageCount ?? null,
-          suggestedGenre: suggestGenre(subjects),
-          catalogGenre: info.categories?.[0] ?? info.mainCategory ?? null,
-        }
-      })
-      .sort((a, b) => Number(Boolean(b.coverUrl)) - Number(Boolean(a.coverUrl)))
+    const results: SearchResult[] = (data.docs ?? [])
+      .filter((doc) => doc.key && doc.title)
+      .map((doc) => ({
+        olKey: doc.key,
+        title: doc.title,
+        author: doc.author_name?.slice(0, 2).join(', ') ?? 'Unknown author',
+        coverId: doc.cover_i ?? null,
+        coverUrl: null,
+        year: doc.first_publish_year ?? null,
+        pages: doc.number_of_pages_median ?? null,
+        suggestedGenre: suggestGenre(doc.subject),
+        catalogGenre: doc.subject?.[0] ?? null,
+      }))
+      .sort((a, b) => Number(Boolean(b.coverId)) - Number(Boolean(a.coverId)))
       .slice(0, 10)
 
     return Response.json({ results })
